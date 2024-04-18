@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { signIn } from '@/auth';
 import { AuthError } from 'next-auth';
+import email from 'next-auth/providers/email';
 
 const FormSchema = z.object({
     id: z.string(),
@@ -19,12 +20,20 @@ const FormSchema = z.object({
       invalid_type_error: 'Please select an invoice status.',
     }),
     date: z.string(),
+    email: z.string({
+      invalid_type_error: 'Please enter a valid email address.',
+    }),
+    name: z.string({
+      invalid_type_error: 'Please enter a name.',
+    }),
   });
   export type State = {
     errors?: {
       customerId?: string[];
       amount?: string[];
       status?: string[];
+      name?: string[];
+      email?: string[];
     };
     message?: string | null;
   };
@@ -68,6 +77,38 @@ const FormSchema = z.object({
     // Revalidate the cache for the invoices page and redirect the user.
     revalidatePath('/dashboard/invoices');
     redirect('/dashboard/invoices');
+  }
+
+  const CreateCustomer = FormSchema.omit({ id: true });
+   
+  export async function createCustomer(prevState: State, formData: FormData) {
+    const validatedFields = CreateCustomer.safeParse({
+      name: formData.get('name'),
+      email: formData.get('email'),
+    });
+    
+    // If form validation fails, return errors early. Otherwise, continue.
+    if (!validatedFields.success) {
+      return {
+        errors: validatedFields.error.flatten().fieldErrors,
+        message: 'Missing Fields. Failed to Create Customer.',
+      };
+    }
+     
+    // Prepare data for insertion into the database
+    const { name, email } = validatedFields.data;
+   
+    try {
+      await sql`
+        INSERT INTO customers (name, email,)
+        VALUES (${name}, ${email},)
+      `;
+    } catch (error) {
+      return { message: 'Database Error: Failed to Create Customer.' };
+    }
+    
+    revalidatePath('/dashboard/customers');
+    redirect('/dashboard/customers');
   }
 const UpdateInvoice = FormSchema.omit({ id: true, date: true });
  
@@ -115,6 +156,18 @@ export async function deleteInvoice(id: string) {
     
     revalidatePath('/dashboard/invoices');
   }
+  export async function deleteCustomer(id: string) {
+    try {
+      // Perform the deletion operation using the provided id
+      // Replace the placeholder with the actual code to delete the customer
+      // For example:
+       await sql`DELETE FROM customers WHERE id = ${id}`;
+    } catch (error) {
+      return { message: 'Database Error: Failed to Delete Customer.' };
+    }
+    
+    revalidatePath('/dashboard/customers');
+  }
 
   export async function authenticate(
     prevState: string | undefined,
@@ -134,3 +187,4 @@ export async function deleteInvoice(id: string) {
       throw error;
     }
   }
+  
